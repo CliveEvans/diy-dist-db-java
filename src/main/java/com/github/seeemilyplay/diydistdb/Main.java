@@ -1,5 +1,8 @@
 package com.github.seeemilyplay.diydistdb;
 
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -12,8 +15,8 @@ public class Main {
                                          "http://localhost:8082"};
         write(nodeUrls, 3, 2, new Thing(3, "foo"));
         write(nodeUrls, 3, 2, new Thing(7, "bar"));
-        Thing thing3 = read(nodeUrls, 3);
-        Thing thing7 = read(nodeUrls, 7);
+        Thing thing3 = read(nodeUrls, 3, 2, 3);
+        Thing thing7 = read(nodeUrls, 3, 2, 7);
         System.out.println(thing3);
         System.out.println(thing7);
     }
@@ -36,8 +39,31 @@ public class Main {
         }
     }
 
-    public static Thing read(String[] nodeUrls, int id) throws Exception {
-        //todo: only works with one node, need to make distributed!
-        return Node.getThing(nodeUrls[0], id);
+    public static Thing read(String[] nodeUrls,
+                             int replicationFactor,
+                             int readConsistency,
+                             int id) throws Exception {
+        List<Thing> things = new ArrayList<Thing>();
+        for (int i=0; i<replicationFactor; i++) {
+            try {
+                Thing thing = Node.getThing(nodeUrls[i], id);
+                things.add(thing);
+                if (things.size() >= readConsistency) {
+                  break; //we've got enough successful replies already
+                } 
+            } catch (Exception e) {
+                ; //ignore
+            }
+        }
+        if (things.size() < readConsistency) {
+            throw new Exception("Only read from " + things.size() + " nodes");
+        }
+        return Collections.max(things, new Comparator<Thing>() {
+            @Override
+            public int compare(Thing first, Thing second) {
+                return new Long(first.getTimestamp()).compareTo(
+                                                        second.getTimestamp());
+            }
+        }); 
     }
 }
