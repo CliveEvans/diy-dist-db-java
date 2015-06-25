@@ -1,9 +1,12 @@
 package com.github.seeemilyplay.diydistdb;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * A Main method you can use as a stub.
@@ -58,6 +61,34 @@ public class Main {
         if (things.size() < readConsistency) {
             throw new Exception("Only read from " + things.size() + " nodes");
         }
+        readRepair(nodeUrls, replicationFactor, id);
+        return resolve(things);
+    }
+
+    public static void readRepair(String[] nodeUrls,
+                                  int replicationFactor,
+                                  int id) throws Exception {
+        Map<Integer,Thing> things = new HashMap<Integer,Thing>();
+        for (int i=0; i<replicationFactor; i++) {
+            try {
+                Thing thing = Node.getThing(nodeUrls[i], id);
+                things.put(i, thing);
+            } catch (Exception e) {
+                ; //ignore
+            }
+        }
+        Thing thing = resolve(things.values());
+        for (int i=0; i<replicationFactor; i++) {
+            Thing currentThing = things.get(i);
+            //see if it's broken, and if it is fix it
+            if (currentThing == null ||
+                  !thing.getValue().equals(currentThing.getValue())) {
+                Node.putThing(nodeUrls[i], thing);
+            }
+        } 
+    }
+
+    public static Thing resolve(Collection<Thing> things) {
         return Collections.max(things, new Comparator<Thing>() {
             @Override
             public int compare(Thing first, Thing second) {
